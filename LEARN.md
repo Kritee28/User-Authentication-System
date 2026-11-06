@@ -1,6 +1,6 @@
 # Project notes
 
-This file replaces the upstream template guide. For setup, environment variables, API routes, and verified behavior, see [README.md](README.md).
+Use [README.md](README.md) for setup instructions, environment variables, API routes, and application behavior.
 
 ## Authentication flow
 

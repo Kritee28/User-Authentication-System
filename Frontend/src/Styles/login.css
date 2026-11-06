@@ -8,11 +8,8 @@
 
 body {
   background: #bec2c7;
-  overflow: hidden;
-}
-
-.fas {
-  width: 32px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 section {
@@ -20,6 +17,8 @@ section {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  padding: 3rem 1rem;
+  box-sizing: border-box;
   background: #9bbde7;
   background-size:100%;
   animation: gradient 10s ease infinite;
@@ -175,28 +174,6 @@ section {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
 
-.form .inputBx .password-control {
-  position: absolute;
-  top: 11px;
-  right: 10px;
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  background: url(https://snipp.ru/demo/495/view.svg) 0 0 no-repeat;
-  transition: 0.5s;
-}
-
-.form .inputBx .view {
-  background: url(https://snipp.ru/demo/495/no-view.svg) 0 0 no-repeat;
-  transition: 0.5s;
-}
-
-.form .inputBx .fas {
-  position: absolute;
-  top: 13px;
-  left: 13px;
-}
-
 .form .inputBx input[type=submit] {
   background: #fff;
   color: #111;
@@ -212,6 +189,24 @@ section {
   background: linear-gradient(115deg, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.25));
   color: #fff;
   transition: 0.5s;
+}
+
+.form .inputBx button {
+  width: 100%;
+  max-width: 150px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 15px;
+  background: #fff;
+  color: #111;
+  font-size: 16px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.form .inputBx button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .form .inputBx input::placeholder {

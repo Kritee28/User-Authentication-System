@@ -1,17 +1,8 @@
-import React from 'react';
 import '../Styles/dashboard.css';
 import Header from '../Components/header/header';
-import Axios from 'axios';
 
-function HomePage() {
-
-	return (
-		<div class="App">
-			<div class="content">
-				<Header />
-			</div>
-		</div>
-	);
+function Dashboard() {
+	return <main className="App"><div className="content"><Header /></div></main>;
 }
 
-export default HomePage;
+export default Dashboard;

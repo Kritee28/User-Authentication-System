@@ -1,188 +1,93 @@
 const express = require('express');
-const router = express.Router(); // Creating a router object.
-const db = require('../database/index');
-const bcrypt = require('bcrypt'); // A library that is used to hash passwords.
-const { encrypt, decrypt } = require('../module/myCrypto');
+const bcrypt = require('bcryptjs');
+const db = require('../database');
 const { isEmail, checkUsername } = require('../module/check_userOrEmail');
-const { creatSessionOnDB, getSessionOnDB, setSessionOnDB, compareSessionOnDB, destroySessionOnDB } = require('../module/session');
-const { clearAllcookie, getSessionIDCookie } = require('../module/cookie');
 
-const saltRounds = 10; // The number of rounds to use when generating a salt
-// bcrypt.hash(password, saltRounds, (err, hash) => {});
-
-/* This is a post request that is used to register a user. */
-router.post('/register', (req, res) => {
-	/* This is getting the data from the request body. */
-	const name = decrypt(req.body.name).toLowerCase();
-	const lastname = decrypt(req.body.lastname).toLowerCase();
-	const username = decrypt(req.body.username).toLowerCase();
-	const email = decrypt(req.body.email).toLowerCase();
-	const password = req.body.password;
-	/* This is checking if the email is valid. */
-
-	console.log('a', decrypt(req.body.password));
-	console.log('b', req.body.password);
-	if (!isEmail(email)) {
-		res.status(203).send({
-			msg: 'Invalid email',
-			code: 101,
-		});
-		return;
+const router = express.Router();
+const attempts = new Map();
+const limitAuthAttempts = (req, res, next) => {
+	const now = Date.now();
+	const key = req.ip;
+	const entry = attempts.get(key);
+	if (!entry || now - entry.startedAt >= 15 * 60 * 1000) {
+		if (!entry && attempts.size >= 10000) attempts.delete(attempts.keys().next().value);
+		attempts.set(key, { startedAt: now, count: 1 });
+		return next();
 	}
+	if (entry.count >= 10) return publicError(res, 429, 'Too many authentication attempts. Try again later.');
+	entry.count += 1;
+	return next();
+};
+const query = (sql, values) => new Promise((resolve, reject) => {
+	db.query(sql, values, (error, rows) => (error ? reject(error) : resolve(rows)));
+});
 
-	/* This is checking if the username is valid. */
-	if (!checkUsername(username)) {
-		res.status(203).send({
-			msg: 'Username may only contain alphanumeric characters or single hyphens, and cannot begin or end with a hyphen.',
-			code: 102,
-		});
-		return;
-	}
+const cleanString = (value) => typeof value === 'string' ? value.trim() : '';
+const publicError = (res, status, message) => res.status(status).json({ message });
 
-	/* This is checking if the password is at least 8 characters long. */
-	if (password.length < 8)
-		return res.status(203).send({
-			msg: 'Password must be at least 8 characters long.',
-		});
+router.post('/register', limitAuthAttempts, async (req, res, next) => {
+	try {
+		const name = cleanString(req.body.name);
+		const lastname = cleanString(req.body.lastname);
+		const username = cleanString(req.body.username).toLowerCase();
+		const email = cleanString(req.body.email).toLowerCase();
+		const password = typeof req.body.password === 'string' ? req.body.password : '';
 
-	/* This is checking if the username is already registered. */
-	db.query('SELECT * FROM users WHERE username = ?', [ username ], function(err, result) {
-		if (err)
-			throw res.status(500).send({
-				msg: err,
-			});
-		if (result.length == 0) {
-			/* This is checking if the Email is already registered. */
-			db.query('SELECT * FROM users WHERE email = ?', [ email ], function(err, result) {
-				if (err)
-					throw res.status(500).send({
-						msg: err,
-					});
-				if (result.length == 0) {
-					/* This is inserting the data into the database. */
-					db.query('INSERT INTO users (name, lastname, username, email, password ) VALUE (?,?,?,?,?)', [ name, lastname, username, email, password ], (error, response) => {
-						if (error) {
-							res.status(500).send({
-								msg: error,
-							});
-						} else if (err) {
-							res.status(500).send({
-								msg: err,
-							});
-						} else {
-							res.status(200).send({
-								msg: 'User successfully registered',
-								code: 201,
-							});
-						}
-					});
-				} else {
-					res.status(203).send({
-						msg: 'Email already registered',
-						code: 100,
-					});
-				}
-			});
-		} else {
-			res.status(203).send({
-				msg: 'username already registered',
-				code: 100,
-			});
+		if (!name || !lastname || !checkUsername(username) || !isEmail(email) || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+			return publicError(res, 400, 'Provide valid name, lastname, username, email, and a password of 8–72 bytes.');
 		}
+
+		const existing = await query('SELECT userID FROM users WHERE username = ? OR email = ? LIMIT 1', [username, email]);
+		if (existing.length) return publicError(res, 409, 'Username or email is already registered.');
+
+		const passwordHash = await bcrypt.hash(password, 12);
+		await query('INSERT INTO users (name, lastname, username, email, password) VALUES (?, ?, ?, ?, ?)', [name, lastname, username, email, passwordHash]);
+		return res.status(201).json({ message: 'User successfully registered.' });
+	} catch (error) {
+		if (error.code === 'ER_DUP_ENTRY') return publicError(res, 409, 'Username or email is already registered.');
+		return next(error);
+	}
+});
+
+router.post('/login', limitAuthAttempts, async (req, res, next) => {
+	try {
+		const identifier = cleanString(req.body.email).toLowerCase();
+		const password = typeof req.body.password === 'string' ? req.body.password : '';
+		if (!identifier || !password || (!isEmail(identifier) && !checkUsername(identifier))) {
+			return publicError(res, 400, 'Enter a valid email or username and password.');
+		}
+
+		const field = isEmail(identifier) ? 'email' : 'username';
+		const users = await query(`SELECT userID, name, lastname, username, email, password, role FROM users WHERE ${field} = ? LIMIT 1`, [identifier]);
+		const user = users[0];
+		if (!user || !(await bcrypt.compare(password, user.password || ''))) return publicError(res, 401, 'Email/username or password is incorrect.');
+
+		req.session.regenerate((error) => {
+			if (error) return next(error);
+			req.session.user = {
+				userID: user.userID,
+				name: user.name,
+				lastname: user.lastname,
+				username: user.username,
+				role: user.role,
+			};
+			return req.session.save((saveError) => {
+				if (saveError) return next(saveError);
+				return res.status(200).json({ message: 'Signed in.', user: req.session.user });
+			});
+		});
+	} catch (error) {
+		return next(error);
+	}
+});
+
+router.post('/logout', (req, res, next) => {
+	if (!req.session) return res.sendStatus(204);
+	return req.session.destroy((error) => {
+		if (error) return next(error);
+		res.clearCookie('session_id', { path: '/' });
+		return res.sendStatus(204);
 	});
 });
 
-/* This is a post request that is used to login a user. */
-router.post('/login', (req, res) => {
-	// Unless we explicitly write to the session (and resave is false), the
-	// store is never updated, even though a new session is generated on each
-	// request. After we modify that session and during req.end(), it gets
-	// persisted. On subsequent writes, it's updated and synced with the store.
-
-	const email = decrypt(req.body.email).toLowerCase();
-	const password = decrypt(req.body.password);
-	var userOrEmail = 'username';
-	console.log(password);
-
-	/* This is checking if the email or username. */
-	if (isEmail(email)) {
-		userOrEmail = 'email';
-	} else {
-		if (!checkUsername(email)) {
-			res.status(203).send({
-				msg: 'Username may only contain alphanumeric characters or single hyphens, and cannot begin or end with a hyphen.',
-				code: 102,
-			});
-			return;
-		}
-	}
-	/* This is checking if the user is registered. */
-	db.query('SELECT * FROM users WHERE ' + userOrEmail + ' = ?', [ email ], (err, result) => {
-		if (err) res.status(500).send(err);
-		if (result.length > 0) {
-			bcrypt.compare(password, result[0].password, (error, response) => {
-				if (error) {
-					// console.log('error :' + error);
-					res.status(500).send(error);
-				} else if (err) {
-					// console.log('err :' + err);
-					res.status(500).send(err);
-				}
-				if (response == true) {
-					if (req.session.user) {
-						res.status(200).send({
-							user: req.session.user,
-							code: 105,
-						});
-					} else {
-						console.log('User not logged in');
-						req.session.user = {
-							name: result[0].name,
-							lastname: result[0].lastname,
-							userID: result[0].userID,
-							username: email,
-							role: result[0].role,
-							loggedIn: true,
-						};
-						getSessionIDCookie(req, res);
-						creatSessionOnDB(req);
-						res.status(200).send({
-							msg: 'successfully',
-							user: req.session.user,
-							code: 105,
-						});
-					}
-				} else {
-					res.status(203).send({
-						msg: 'Email or password incorrect',
-						code: 105,
-					});
-				}
-			});
-		} else {
-			res.status(203).send({
-				msg: 'Not registered user!',
-				code: 104,
-			});
-		}
-	});
-});
-
-router.get('/logout', (req, res, next) => {
-	// Note that the portion between 's%3A' and '.' is the session ID above.
-	// 's%3A' is URL encoded and decodes to 's:'. The last part is the signature.
-	// sid=s%3A0kVkUn7KUX1UZGnjagDKd_NPerjXKJsA.senfzYOeNHCtGUNP4bv1%2BSdgSdZWFtoAaM73odYtLDo
-	// console.log(req.get('cookie'))
-
-	// Upon logout, we can destroy the session and unset req.session.
-	console.log(req.session);
-	var destroySession = destroySessionOnDB(req.session.user.userID);
-	console.log('logout completed', destroySession);
-	req.session.destroy();
-	clearAllcookie(req, res);
-	res.status(200).json({ req: req.session });
-	next(); // this will give you the above exception
-});
-
-/* This is exporting the router object. */
 module.exports = router;

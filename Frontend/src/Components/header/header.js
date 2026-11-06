@@ -1,37 +1,28 @@
-import React from "react";
-import "../../Styles/header.css"
-import Axios from 'axios';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import '../../Styles/header.css';
+import { API_URL } from '../../module/api';
 
 function Header() {
-    
-    const logout = () => {
-        Axios.get('https://localhost:4000/auth/logout', {
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            withCredentials: true,
-            method: 'GET',
-        }).then((response) => {
-            console.log(response);
-            console.log(response.data.session);
-            return response;
-        });
-        localStorage.clear();
-        window.location.reload();
-    }
+	const [loggingOut, setLoggingOut] = useState(false);
+	const navigate = useNavigate();
+	const logout = async () => {
+		setLoggingOut(true);
+		try {
+			await axios.post(`${API_URL}/auth/logout`, {}, { withCredentials: true });
+			navigate('/', { replace: true });
+			window.location.reload();
+		} catch (error) {
+			toast.error(error.response?.data?.message || 'Could not sign out. Try again.');
+			setLoggingOut(false);
+		}
+	};
 
-    return (
-        <div>
-            <header class="d-flex flex-wrap align-items-center justify-content-center justify-content-md-between py-3 mb-4 border-bottom">
-                <ul class="nav col-12 col-md-auto mb-2 justify-content-center mb-md-100">
-                </ul>
-                <div class="col-md-3 text-end">
-                    <button onClick={logout} type="button" class="btn btn-primary">logout</button>
-                </div>
-            </header>
-        </div>
-    );
-
+	return <header className="d-flex flex-wrap align-items-center justify-content-center justify-content-md-between py-3 mb-4 border-bottom">
+		<div className="col-md-3 text-end"><button onClick={logout} type="button" className="btn btn-primary" disabled={loggingOut}>{loggingOut ? 'Signing out…' : 'Sign out'}</button></div>
+	</header>;
 }
 
 export default Header;

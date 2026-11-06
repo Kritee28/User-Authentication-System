@@ -1,6 +1,6 @@
 {
-  "short_name": "Tasio",
-  "name": "Create React App Sample",
+  "short_name": "Auth System",
+  "name": "User Authentication System",
   "icons": [
     {
       "src": "logo.png",

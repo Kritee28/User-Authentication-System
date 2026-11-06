@@ -16,7 +16,7 @@
         "authentication",
         "authorization"
     ],
-    "author": "Kritee (@Kritee28)",
+    "author": "Kritika",
     "license": "MIT",
     "dependencies": {
         "bcryptjs": "^3.0.3",

@@ -13,10 +13,10 @@ Passwords are not encrypted with custom browser code. Transport encryption shoul
 
 ## Local checks
 
-- Backend: `npm test` (Node test runner; currently no test files are included).
+- Backend: `npm test` (runs the Node test suite in `backend/test/auth.test.js`).
 - Frontend: `npm run build`.
 - Manual registration/login checks require MySQL configured as described in the README.
 
 ## Current sole project maintainer
 
-Kritee (@Kritee28): https://github.com/Kritee28
+Kritika (@Kritee28): https://github.com/Kritee28

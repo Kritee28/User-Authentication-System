@@ -98,8 +98,8 @@ No screenshots are included yet.
 - Configure a persistent session store, CSRF protection for cross-site deployments, and a shared rate limiter for production.
 - Add password recovery and email verification if those features are required.
 
-## Ownership and license
+## Author and maintenance
 
-**Sole current repository owner and maintainer:** Kritee (@Kritee28) · [GitHub profile](https://github.com/Kritee28) · [Repository](https://github.com/Kritee28/User-Authentication-System)
+**Author and current maintainer:** Kritika (@Kritee28) · [GitHub profile](https://github.com/Kritee28) · [Repository](https://github.com/Kritee28/User-Authentication-System)
 
-The repository retains its existing [`LICENSE`](LICENSE), including its original copyright attribution. Repository ownership and current maintenance do not alter that legal notice or claim authorship of third-party contributions.
+
